@@ -1,0 +1,584 @@
+diff --git a/fs/Makefile b/fs/Makefile
+index e4a54c7b71c7..93dcd73131cc 100644
+--- a/fs/Makefile
++++ b/fs/Makefile
+@@ -14,6 +14,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
+ 		pnode.o splice.o sync.o utimes.o d_path.o \
+ 		stack.o fs_struct.o statfs.o fs_pin.o nsfs.o
+ 
++obj-$(CONFIG_KSU_SUSFS) += susfs.o
++
+ ifeq ($(CONFIG_BLOCK),y)
+ obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
+ else
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 98363cb3d4b1..dafafce397fd 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -31,6 +31,9 @@
+ #include <linux/bit_spinlock.h>
+ #include <linux/rculist_bl.h>
+ #include <linux/list_lru.h>
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++#include <linux/susfs_def.h>
++#endif
+ #include "internal.h"
+ #include "mount.h"
+ 
+@@ -2189,6 +2192,11 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 				continue;
+ 			if (dentry_cmp(dentry, str, hashlen_len(hashlen)) != 0)
+ 				continue;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++			if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++				continue;
++			}
++#endif
+ 		}
+ 		*seqp = seq;
+ 		return dentry;
+@@ -2272,6 +2280,12 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
+ 		if (dentry->d_name.hash != hash)
+ 			continue;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++		if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++			continue;
++		}
++#endif
++
+ 		spin_lock(&dentry->d_lock);
+ 		if (dentry->d_parent != parent)
+ 			goto next;
+diff --git a/fs/namei.c b/fs/namei.c
+index d7f4c149bd98..19e481760862 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -40,6 +40,9 @@
+ #include <linux/init_task.h>
+ #include <linux/uaccess.h>
+ #include <linux/build_bug.h>
++#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
++#include <linux/susfs_def.h>
++#endif
+ 
+ #include "internal.h"
+ #include "mount.h"
+@@ -995,6 +998,12 @@ static inline int may_follow_link(struct nameidata *nd)
+ 	const struct inode *parent;
+ 	kuid_t puid;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (nd->inode && unlikely(nd->inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		return -ENOENT;
++	}
++#endif
++
+ 	if (!sysctl_protected_symlinks)
+ 		return 0;
+ 
+@@ -1072,6 +1081,12 @@ static int may_linkat(struct path *link)
+ {
+ 	struct inode *inode = link->dentry->d_inode;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (link->dentry->d_inode && unlikely(link->dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		return -ENOENT;
++	}
++#endif
++
+ 	/* Inode writeback is not safe when the uid or gid are invalid. */
+ 	if (!uid_valid(inode->i_uid) || !gid_valid(inode->i_gid))
+ 		return -EOVERFLOW;
+@@ -1113,6 +1128,12 @@ static int may_linkat(struct path *link)
+ static int may_create_in_sticky(umode_t dir_mode, kuid_t dir_uid,
+ 				struct inode * const inode)
+ {
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		return -ENOENT;
++	}
++#endif
++
+ 	if ((!sysctl_protected_fifos && S_ISFIFO(inode->i_mode)) ||
+ 	    (!sysctl_protected_regular && S_ISREG(inode->i_mode)) ||
+ 	    likely(!(dir_mode & S_ISVTX)) ||
+@@ -1633,6 +1654,12 @@ static struct dentry *__lookup_hash(const struct qstr *name,
+ 		dput(dentry);
+ 		dentry = old;
+ 	}
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		dput(dentry);
++		return ERR_PTR(-ENOENT);
++	}
++#endif
+ 	return dentry;
+ }
+ 
+@@ -1760,6 +1787,12 @@ static struct dentry *__lookup_slow(const struct qstr *name,
+ 			dentry = old;
+ 		}
+ 	}
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		dput(dentry);
++		return ERR_PTR(-ENOENT);
++	}
++#endif
+ 	return dentry;
+ }
+ 
+@@ -2250,6 +2283,12 @@ static int link_path_walk(const char *name, struct nameidata *nd)
+ 			}
+ 			return -ENOTDIR;
+ 		}
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++		// we deal with sus sub path here
++		if (nd->inode && unlikely(nd->inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++			return 0;
++		}
++#endif
+ 	}
+ }
+ 
+@@ -2439,6 +2478,12 @@ static int filename_lookup(int dfd, struct filename *name, unsigned flags,
+ 	if (likely(!retval))
+ 		audit_inode(name, path->dentry, flags & LOOKUP_PARENT);
+ 	restore_nameidata();
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (!retval && path->dentry->d_inode && unlikely(path->dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		putname(name);
++		return -ENOENT;
++	}
++#endif
+ 	putname(name);
+ 	return retval;
+ }
+@@ -2894,6 +2939,11 @@ static int may_delete(struct inode *dir, struct dentry *victim, bool isdir)
+ 		return error;
+ 	if (IS_APPEND(dir))
+ 		return -EPERM;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		return -ENOENT;
++	}
++#endif
+ 
+ 	if (check_sticky(dir, inode) || IS_APPEND(inode) ||
+ 	    IS_IMMUTABLE(inode) || IS_SWAPFILE(inode) || HAS_UNMAPPED_ID(inode))
+@@ -2923,8 +2973,20 @@ static int may_delete(struct inode *dir, struct dentry *victim, bool isdir)
+  */
+ static inline int may_create(struct inode *dir, struct dentry *child)
+ {
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	int error;
++#endif
+ 	struct user_namespace *s_user_ns;
+ 	audit_inode_child(dir, child, AUDIT_TYPE_CHILD_CREATE);
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (child->d_inode && unlikely(child->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		error = inode_permission(dir, MAY_WRITE | MAY_EXEC);
++		if (error) {
++			return error;
++		}
++		return -ENOENT;
++	}
++#endif
+ 	if (child->d_inode)
+ 		return -EEXIST;
+ 	if (IS_DEADDIR(dir))
+@@ -3037,6 +3099,12 @@ static int may_open(const struct path *path, int acc_mode, int flag)
+ 	if (!inode)
+ 		return -ENOENT;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (unlikely(inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		return -ENOENT;
++	}
++#endif
++
+ 	switch (inode->i_mode & S_IFMT) {
+ 	case S_IFLNK:
+ 		return -ELOOP;
+@@ -3108,7 +3176,20 @@ static inline int open_to_namei_flags(int flag)
+ static int may_o_create(const struct path *dir, struct dentry *dentry, umode_t mode)
+ {
+ 	struct user_namespace *s_user_ns;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	int error;
++
++	if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++		error = inode_permission(dir->dentry->d_inode, MAY_WRITE | MAY_EXEC);
++		if (error) {
++			return error;
++		}
++		return -ENOENT;
++	}
++	error = security_path_mknod(dir, dentry, mode, 0);
++#else
+ 	int error = security_path_mknod(dir, dentry, mode, 0);
++#endif
+ 	if (error)
+ 		return error;
+ 
+@@ -3247,6 +3328,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 	}
+ 	if (dentry->d_inode) {
+ 		/* Cached positive dentry: will open in f_op->open */
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++		if (unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++			dput(dentry);
++			return -ENOENT;
++		}
++#endif
+ 		goto out_no_open;
+ 	}
+ 
+@@ -3290,6 +3377,16 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 				    mode);
+ 		if (unlikely(error == -ENOENT) && create_error)
+ 			error = create_error;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++		if (!IS_ERR(dentry) && dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++			if (create_error) {
++				dput(dentry);
++				return create_error;
++			}
++			dput(dentry);
++			return -ENOENT;
++		}
++#endif
+ 		return error;
+ 	}
+ 
+@@ -3305,6 +3402,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 			}
+ 			dput(dentry);
+ 			dentry = res;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++			if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++				dput(dentry);
++				return -ENOENT;
++			}
++#endif
+ 		}
+ 	}
+ 
+@@ -3642,12 +3745,19 @@ static struct file *path_openat(struct nameidata *nd,
+ 	return ERR_PTR(error);
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
++extern struct filename* susfs_get_redirected_path(unsigned long ino);
++#endif
++
+ struct file *do_filp_open(int dfd, struct filename *pathname,
+ 		const struct open_flags *op)
+ {
+ 	struct nameidata nd;
+ 	int flags = op->lookup_flags;
+ 	struct file *filp;
++#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
++	struct filename *fake_pathname;
++#endif
+ 
+ 	set_nameidata(&nd, dfd, pathname);
+ 	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
+@@ -3655,6 +3765,25 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
+ 		filp = path_openat(&nd, op, flags);
+ 	if (unlikely(filp == ERR_PTR(-ESTALE)))
+ 		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
++#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
++	if (!IS_ERR(filp) && unlikely(filp->f_inode->i_state & INODE_STATE_OPEN_REDIRECT) && current_uid().val < 2000) {
++		fake_pathname = susfs_get_redirected_path(filp->f_inode->i_ino);
++		if (!IS_ERR(fake_pathname)) {
++			restore_nameidata();
++			filp_close(filp, NULL);
++			// no need to do `putname(pathname);` here as it will be done by calling process
++			set_nameidata(&nd, dfd, fake_pathname);
++			filp = path_openat(&nd, op, flags | LOOKUP_RCU);
++			if (unlikely(filp == ERR_PTR(-ECHILD)))
++				filp = path_openat(&nd, op, flags);
++			if (unlikely(filp == ERR_PTR(-ESTALE)))
++				filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
++			restore_nameidata();
++			putname(fake_pathname);
++			return filp;
++		}
++	}
++#endif
+ 	restore_nameidata();
+ 	return filp;
+ }
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 0e25713d09fa..151e574ed026 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -27,10 +27,37 @@
+ #include <linux/bootmem.h>
+ #include <linux/task_work.h>
+ #include <linux/sched/task.h>
++#if defined(CONFIG_KSU_SUSFS_SUS_MOUNT) || defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
++#include <linux/susfs_def.h>
++#endif
+ 
+ #include "pnode.h"
+ #include "internal.h"
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++extern bool susfs_is_current_ksu_domain(void);
++extern bool susfs_is_current_zygote_domain(void);
++
++static DEFINE_IDA(susfs_mnt_id_ida);
++static DEFINE_IDA(susfs_mnt_group_ida);
++
++#define CL_ZYGOTE_COPY_MNT_NS BIT(24) /* used by copy_mnt_ns() */
++#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
++#endif
++
++#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
++extern void susfs_auto_add_sus_ksu_default_mount(const char __user *to_pathname);
++bool susfs_is_auto_add_sus_ksu_default_mount_enabled = true;
++#endif
++#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
++extern int susfs_auto_add_sus_bind_mount(const char *pathname, struct path *path_target);
++bool susfs_is_auto_add_sus_bind_mount_enabled = true;
++#endif
++#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
++extern void susfs_auto_add_try_umount_for_bind_mount(struct path *path);
++bool susfs_is_auto_add_try_umount_for_bind_mount_enabled = true;
++#endif
++
+ /* Maximum number of mounts in a mount namespace */
+ unsigned int sysctl_mount_max __read_mostly = 100000;
+ 
+@@ -97,6 +124,18 @@ static inline struct hlist_head *mp_hash(struct dentry *dentry)
+ 	return &mountpoint_hashtable[tmp & mp_hash_mask];
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++// Our own mnt_alloc_id() that assigns mnt_id starting from DEFAULT_SUS_MNT_ID
++static int susfs_mnt_alloc_id(struct mount *mnt)
++{
++	int res = ida_alloc_min(&susfs_mnt_id_ida, DEFAULT_SUS_MNT_ID, GFP_KERNEL);
++
++	if (res < 0)
++		return res;
++	mnt->mnt_id = res;
++	return 0;
++}
++#endif
+ static int mnt_alloc_id(struct mount *mnt)
+ {
+ 	int res = ida_alloc(&mnt_id_ida, GFP_KERNEL);
+@@ -109,6 +148,26 @@ static int mnt_alloc_id(struct mount *mnt)
+ 
+ static void mnt_free_id(struct mount *mnt)
+ {
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// We should first check the 'mnt->mnt.susfs_mnt_id_backup', see if it is DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE
++	// if so, these mnt_id were not assigned by mnt_alloc_id() so we don't need to free it.
++	if (unlikely(mnt->mnt.susfs_mnt_id_backup == DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE)) {
++		return;
++	}
++	// Now we can check if its mnt_id is sus
++	if (unlikely(mnt->mnt_id >= DEFAULT_SUS_MNT_ID)) {
++		ida_free(&susfs_mnt_id_ida, mnt->mnt_id);
++		return;
++	}
++	// Lastly if 'mnt->mnt.susfs_mnt_id_backup' is not 0, then it contains a backup origin mnt_id
++	// so we free it in the original way
++	if (likely(mnt->mnt.susfs_mnt_id_backup)) {
++		// If mnt->mnt.susfs_mnt_id_backup is not zero, it means mnt->mnt_id is spoofed,
++		// so here we return the original mnt_id for being freed.
++		ida_free(&mnt_id_ida, mnt->mnt.susfs_mnt_id_backup);
++		return;
++	}
++#endif
+ 	ida_free(&mnt_id_ida, mnt->mnt_id);
+ }
+ 
+@@ -117,7 +176,20 @@ static void mnt_free_id(struct mount *mnt)
+  */
+ static int mnt_alloc_group_id(struct mount *mnt)
+ {
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	int res;
++
++	// Check if mnt has sus mnt_id
++	if (mnt->mnt_id >= DEFAULT_SUS_MNT_ID) {
++		// If so, assign a sus mnt_group id DEFAULT_SUS_MNT_GROUP_ID from susfs_mnt_group_ida
++		res = ida_alloc_min(&susfs_mnt_group_ida, DEFAULT_SUS_MNT_GROUP_ID, GFP_KERNEL);
++		goto bypass_orig_flow;
++	}
++	res = ida_alloc_min(&mnt_group_ida, 1, GFP_KERNEL);
++bypass_orig_flow:
++#else
+ 	int res = ida_alloc_min(&mnt_group_ida, 1, GFP_KERNEL);
++#endif
+ 
+ 	if (res < 0)
+ 		return res;
+@@ -130,6 +202,15 @@ static int mnt_alloc_group_id(struct mount *mnt)
+  */
+ void mnt_release_group_id(struct mount *mnt)
+ {
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// If mnt->mnt_group_id >= DEFAULT_SUS_MNT_GROUP_ID, it means 'mnt' is also sus mount,
++	// then we free the mnt->mnt_group_id from susfs_mnt_group_ida
++	if (mnt->mnt_group_id >= DEFAULT_SUS_MNT_GROUP_ID) {
++		ida_free(&susfs_mnt_group_ida, mnt->mnt_group_id);
++		mnt->mnt_group_id = 0;
++		return;
++	}
++#endif
+ 	ida_free(&mnt_group_ida, mnt->mnt_group_id);
+ 	mnt->mnt_group_id = 0;
+ }
+@@ -175,13 +256,31 @@ static void drop_mountpoint(struct fs_pin *p)
+ 	mntput(&m->mnt);
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++static struct mount *alloc_vfsmnt(const char *name, bool should_spoof, int custom_mnt_id)
++#else
+ static struct mount *alloc_vfsmnt(const char *name)
++#endif
+ {
+ 	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
+ 	if (mnt) {
+ 		int err;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++		if (should_spoof) {
++			if (!custom_mnt_id) {
++				err = susfs_mnt_alloc_id(mnt);
++			} else {
++				mnt->mnt_id = custom_mnt_id;
++				err = 0;
++			}
++			goto bypass_orig_flow;
++		}
++#endif
+ 		err = mnt_alloc_id(mnt);
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++bypass_orig_flow:
++#endif
+ 		if (err)
+ 			goto out_free_cache;
+ 
+@@ -954,7 +1053,17 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+ 	if (!type)
+ 		return ERR_PTR(-ENODEV);
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// For newly created mounts, the only caller process we care is KSU
++	if (unlikely(susfs_is_current_ksu_domain())) {
++		mnt = alloc_vfsmnt(name, true, 0);
++		goto bypass_orig_flow;
++	}
++	mnt = alloc_vfsmnt(name, false, 0);
++bypass_orig_flow:
++#else
+ 	mnt = alloc_vfsmnt(name);
++#endif
+ 	if (!mnt)
+ 		return ERR_PTR(-ENOMEM);
+ 
+@@ -980,6 +1089,15 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+ 	mnt->mnt.mnt_sb = root->d_sb;
+ 	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
+ 	mnt->mnt_parent = mnt;
++
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// If caller process is zygote, then it is a normal mount, so we just reorder the mnt_id
++	if (susfs_is_current_zygote_domain()) {
++		mnt->mnt.susfs_mnt_id_backup = mnt->mnt_id;
++		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
++	}
++#endif
++
+ 	lock_mount_hash();
+ 	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
+ 	unlock_mount_hash();
+@@ -1009,7 +1127,52 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+ 	struct mount *mnt;
+ 	int err;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	bool is_current_ksu_domain = susfs_is_current_ksu_domain();
++	bool is_current_zygote_domain = susfs_is_current_zygote_domain();
++
++	/* - It is very important that we need to use CL_COPY_MNT_NS to identify whether 
++	 *   the clone is a copy_tree() or single mount like called by __do_loopback()
++	 * - if caller process is KSU, consider the following situation:
++	 *     1. it is NOT doing unshare => call alloc_vfsmnt() to assign a new sus mnt_id
++	 *     2. it is doing unshare => spoof the new mnt_id with the old mnt_id
++	 * - If caller process is zygote and old mnt_id is sus => call alloc_vfsmnt() to assign a new sus mnt_id
++	 * - For the rest of caller process that doing unshare => call alloc_vfsmnt() to assign a new sus mnt_id only for old sus mount
++	 */
++	// Firstly, check if it is KSU process
++	if (unlikely(is_current_ksu_domain)) {
++		// if it is doing single clone
++		if (!(flag & CL_COPY_MNT_NS)) {
++			mnt = alloc_vfsmnt(old->mnt_devname, true, 0);
++			goto bypass_orig_flow;
++		}
++		// if it is doing unshare
++		mnt = alloc_vfsmnt(old->mnt_devname, true, old->mnt_id);
++		if (mnt) {
++			mnt->mnt.susfs_mnt_id_backup = DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE;
++		}
++		goto bypass_orig_flow;
++	}
++	// Secondly, check if it is zygote process and no matter it is doing unshare or not
++	if (likely(is_current_zygote_domain) && (old->mnt_id >= DEFAULT_SUS_MNT_ID)) {
++		/* Important Note: 
++		 *  - Here we can't determine whether the unshare is called zygisk or not,
++		 *    so we can only patch out the unshare code in zygisk source code for now
++		 *  - But at least we can deal with old sus mounts using alloc_vfsmnt()
++		 */
++		mnt = alloc_vfsmnt(old->mnt_devname, true, 0);
++		goto bypass_orig_flow;
++	}
++	// Lastly, for other process that is doing unshare operation, but only deal with old sus mount
++	if ((flag & CL_COPY_MNT_NS) && (old->mnt_id >= DEFAULT_SUS_MNT_ID)) {
++		mnt = alloc_vfsmnt(old->mnt_devname, true, 0);
++		goto bypass_orig_flow;
++	}
++	mnt = alloc_vfsmnt(old->mnt_devname, false, 0);
++bypass_orig_flow:
++#else
+ 	mnt = alloc_vfsmnt(old->mnt_devname);
++#endif
+ 	if (!mnt)
+ 		return ERR_PTR(-ENOMEM);
+ 
+@@ -1061,6 +1224,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+ 	mnt->mnt.mnt_root = dget(root);
+ 	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
+ 	mnt->mnt_parent = mnt;
++
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	// If caller process is zygote and not doing unshare, so we just reorder the mnt_id
++	if (likely(is_current_zygote_domain) && !(flag & CL_ZYGOTE_COPY_MNT_NS)) {
++		mnt->mnt.susfs_mnt_id_backup = mnt->mnt_id;
++		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
++	}
++#endif
++
+ 	lock_mount_hash();
+ 	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
+ 	unlock_mount_hash();
+@@ -2282,6 +2454,27 @@ static int do_loopback(struct path *path, const char *old_name,
+ 		umount_tree(mnt, UMOUNT_SYNC);
+ 		unlock_mount_hash();
+ 	}
++#if defined(CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT) || defined(CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT)
++	// Check if bind mounted path should be hidden and umounted automatically.
++	// And we target only process with ksu domain.
++	if (susfs_is_current_ksu_domain()) {
++#if defined(CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT)
++		if (susfs_is_auto_add_sus_bind_mount_enabled &&
++				susfs_auto_add_sus_bind_mount(old_name, 
