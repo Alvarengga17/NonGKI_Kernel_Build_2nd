@@ -124,7 +124,14 @@ jobs:
 
       - name: 🛡️ Patch Kernel of NoMount
         uses: ./.github/workflows/patch-nomount
-      
+
+      - name: 📥 Fetch and Inject susfs_def.h Manually
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          mkdir -p include/linux
+          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs_def.h" -o include/linux/susfs_def.h
+          echo "✅ susfs_def.h dari cabang 4.19 sukses disuntikkan secara manual!"
+
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
