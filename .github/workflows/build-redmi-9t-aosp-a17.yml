@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "chime"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable"
 
   KERNEL_SOURCE : "https://github.com/Joe7500/valeryn_xiaomi_sm6115.git"
   KERNEL_BRANCH : "android16"
@@ -91,7 +91,7 @@ jobs:
   build-kernel:
     name: Xiaomi Redmi 9T (AOSP Based A17) (Kernel 4.19)
     runs-on: ubuntu-24.04 # u can changed to ubuntu 22.04, and need container set ubuntu-24.04
-    container: ubuntu:focal # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
+    # container: ubuntu:focal # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
