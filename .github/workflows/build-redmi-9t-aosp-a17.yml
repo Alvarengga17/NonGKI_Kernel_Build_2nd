@@ -13,7 +13,7 @@ env:
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable"
 
   KERNEL_SOURCE : "https://github.com/Joe7500/valeryn_xiaomi_sm6115.git"
-  KERNEL_BRANCH : "android16"
+  KERNEL_BRANCH : "susfs-2.3.0"
 
   CLANG_SOURCE : "https://github.com/kdrag0n/proton-clang.git"
   CLANG_BRANCH : "master"
@@ -35,8 +35,8 @@ env:
   KERNELSU_AUTO_GET : "true" # if u want easy setting kernelsu, u can true.
   KERNELSU_AUTO_FORK : "bakasu" # xxksu, rsuntk, next, bakasu and sukisu
 
-  SUSFS_ENABLE : true
-  SUSFS_FIXED : true
+  SUSFS_ENABLE : false
+  SUSFS_FIXED : false
 
   AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH : "master"
@@ -59,8 +59,8 @@ env:
   PATCHES_SOURCE: "JackA1ltman/NonGKI_Kernel_Build_2nd" # [your_name]/[your_patch] -> gooder123/NonGKI_Patcher
   PATCHES_BRANCH: "mainline" # [your_branch] -> main
 
-  SUSFS_FOLDER_FIXED: "Patches/Patch" # Fill in your patch prefix directory here. Leave it blank if there isn't one. -> your_folder
-  SUSFS_PATCH_FIXED: "susfs_patch_to_4.19" # Fill in your patches here. If there are multiple patches, please separate them with a comma. Leave it blank if there isn't one. -> patch1,patch2
+  SUSFS_FOLDER_FIXED: "" # Fill in your patch prefix directory here. Leave it blank if there isn't one. -> your_folder
+  SUSFS_PATCH_FIXED: "" # Fill in your patches here. If there are multiple patches, please separate them with a comma. Leave it blank if there isn't one. -> patch1,patch2
 
   REKERNEL_ENABLE: "false" # if u need Re:Kernel.
   DROIDSPACES_ENABLE: "false" # if u need Droidspaces or LXC/Docker.
