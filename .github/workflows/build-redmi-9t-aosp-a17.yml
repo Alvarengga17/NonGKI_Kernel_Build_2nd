@@ -12,8 +12,8 @@ env:
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
 
-  KERNEL_SOURCE : "https://github.com/Joe7500/valeryn_xiaomi_sm6115.git"
-  KERNEL_BRANCH : "susfs-2.3.0"
+  KERNEL_SOURCE : "https://github.com/Alvarengga17/valeryn_xiaomi_sm6115.git"
+  KERNEL_BRANCH : "android16-susfs-2.3.0"
 
   CLANG_SOURCE : "https://github.com/kdrag0n/proton-clang.git"
   CLANG_BRANCH : "master"
@@ -79,7 +79,7 @@ env:
   GENERATE_DTB: "false" # if u kernel need DTB , but cannot auto generate it. (Only AnyKernel3).
   GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
 
-  BUILD_DEBUGGER: "true" # Output build errors.
+  BUILD_DEBUGGER: "false" # Output build errors.
   SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
 
   BUILD_OTHER_CONFIG: "false" # Merge config files.
@@ -107,11 +107,11 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      # - name: 🪝 Patch Kernel of SUSFS
-      #  uses: ./.github/workflows/patch-susfs
+      - name: 🪝 Patch Kernel of SUSFS
+        uses: ./.github/workflows/patch-susfs
 
-      # - name: 🔗 Patch for no-kprobe
-      #  uses: ./.github/workflows/patch-no-kprobe
+      - name: 🔗 Patch for no-kprobe
+        uses: ./.github/workflows/patch-no-kprobe
      
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
@@ -124,14 +124,7 @@ jobs:
 
       - name: 🛡️ Patch Kernel of NoMount
         uses: ./.github/workflows/patch-nomount
-
-      - name: 📥 Fetch and Inject susfs_def.h Manually
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          mkdir -p include/linux
-          curl -sSL "https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/include/linux/susfs_def.h" -o include/linux/susfs_def.h
-          echo "✅ susfs_def.h dari cabang 4.19 sukses disuntikkan secara manual!"
-
+      
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
