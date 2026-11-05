@@ -106,7 +106,14 @@ jobs:
 
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
-
+        
+      - name: 🛠️ Force Inject susfs_def.h from Your Repository
+        run: |
+          cd device_kernel
+          mkdir -p include/linux
+          curl -o include/linux/susfs_def.h -L https://raw.githubusercontent.com/Alvarengga17/valeryn_xiaomi_sm6115/refs/heads/android16-susfs-2.3.0/include/linux/susfs_def.h
+          cd ..
+          
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
