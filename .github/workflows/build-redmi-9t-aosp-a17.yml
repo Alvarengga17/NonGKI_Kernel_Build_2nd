@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "chime"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable -Wno-error"
 
   KERNEL_SOURCE : "https://github.com/Alvarengga17/valeryn_xiaomi_sm6115.git"
   KERNEL_BRANCH : "android16"
@@ -109,16 +109,7 @@ jobs:
                        
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
-        
-      - name: 🛠️ Force Append susfs_def.h into fs/super.c
-        run: |
-          cd device_kernel
-          curl -s https://raw.githubusercontent.com/Alvarengga17/valeryn_xiaomi_sm6115/refs/heads/android16-susfs-2.3.0/include/linux/susfs_def.h > tmp_def.h
-          cat tmp_def.h fs/super.c > tmp_super.c
-          mv tmp_super.c fs/super.c
-          rm tmp_def.h
-          cd ..
-          
+                    
       - name: 🔗 Patch for no-kprobe
         uses: ./.github/workflows/patch-no-kprobe
      
