@@ -124,14 +124,7 @@ jobs:
 
       - name: 🛡️ Patch Kernel of NoMount
         uses: ./.github/workflows/patch-nomount
-        
-      - name: 🧯 Pre-Compile Force Secure susfs_def.h
-        run: |
-          mkdir -p device_kernel/include/linux
-          cp device_kernel/include/linux/susfs_def.h device_kernel/include/linux/susfs_def.h.bak || true
-          sed -i 's/_SUSFS_DEF_H/KSU_SUSFS_DEF_H/g' device_kernel/include/linux/susfs_def.h || true
-          sed -i 's/KSU_SUSFS_DEF_H/_SUSFS_DEF_H/g' device_kernel/include/linux/susfs_def.h || true
-          
+                        
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
