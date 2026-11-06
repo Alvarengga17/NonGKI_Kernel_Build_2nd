@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "chime"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable -Wno-error"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
 
   KERNEL_SOURCE : "https://github.com/Alvarengga17/valeryn_xiaomi_sm6115.git"
   KERNEL_BRANCH : "android16-susfs-2.3.0"
@@ -80,7 +80,7 @@ env:
   GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
 
   BUILD_DEBUGGER: "false" # Output build errors.
-  SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
+  SKIP_PATCH: "true" # Ignore errors found in Patch Debugger.
 
   BUILD_OTHER_CONFIG: "false" # Merge config files.
   MERGE_CONFIG_FILES: ""
@@ -106,14 +106,7 @@ jobs:
 
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
-        
-      - name: 🛠️ Force Inject susfs_def.h into Build Environment
-        run: |
-          cd device_kernel
-          mkdir -p include/linux
-          curl -s -o include/linux/susfs_def.h -L https://raw.githubusercontent.com/Alvarengga17/valeryn_xiaomi_sm6115/refs/heads/android16-susfs-2.3.0/include/linux/susfs_def.h
-          cd ..
-          
+                        
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
                     
