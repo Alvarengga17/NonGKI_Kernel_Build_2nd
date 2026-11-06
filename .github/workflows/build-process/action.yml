@@ -3,7 +3,7 @@ name: 'Execute the compilation process.'
 runs:
   using: 'composite'
   steps:
-    - name: 🔒 Fix susfs_def.h (Download Clean Header)
+      - name: 🔒 Fix susfs_def.h (Download Clean Header)
       shell: bash
       run: |
         mkdir -p $GITHUB_WORKSPACE/device_kernel/include/linux
