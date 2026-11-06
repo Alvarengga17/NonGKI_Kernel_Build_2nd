@@ -29,13 +29,7 @@ runs:
         with:
           key: build-kernel-${{ env.DEVICE_NAME }}${{ env.UPLOADNAME }}
           max-size: 2G
-          
-      - name: Fix susfs_def.h (Download Clean Header)
-        run: |
-          mkdir -p device_kernel/include/linux
-          curl -Lo device_kernel/include/linux/susfs_def.h https://raw.githubusercontent.com/Alvarengga17/valeryn_xiaomi_sm6115/refs/heads/android16-susfs-2.3.0/include/linux/susfs_def.h
-          sed -i '/#ifndef KSU_SUSFS_DEF_H/a #define CONFIG_KSU_SUSFS_SUS_PATH_FILTER 1\n#define CONFIG_KSU_SUSFS_LAZY_UMNT 1\n#define CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYSCALL 1\n#define CONFIG_KSU_SUSFS_SPOOF_UNAME 1\n#define CONFIG_KSU_SUSFS_ENABLE_LOG 1\n#define CONFIG_KSU_SUSFS_OPEN_REDIRECT 1\n#define CONFIG_KSU_SUSFS_SUS_MOUNT 1\n#define CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSTAT 1\n#define CONFIG_KSU_SUSFS_TRY_UMOUNT 1' device_kernel/include/linux/susfs_def.h
-        
+
       - name: Build Kernel
         shell: bash
         run: |
