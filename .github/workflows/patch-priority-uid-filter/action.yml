@@ -1,0 +1,10 @@
+name: 'Patch SUSFS PRIORITY_UID_FILTER (kernel side + BakaSU side).'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Patch SUSFS PRIORITY_UID_FILTER
+      if: env.SUSFS_ENABLE == 'true' && env.SUSFS_PRIORITY_UID_FILTER == 'true'
+      shell: bash
+      run: bash "${{ github.action_path }}/apply.sh" "${{ github.action_path }}"
+      
