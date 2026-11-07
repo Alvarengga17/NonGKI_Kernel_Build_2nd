@@ -37,6 +37,7 @@ env:
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : false
+  SUSFS_PRIORITY_UID_FILTER : true # CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER (getpriority/ioprio uid hiding). Needs SUSFS_ENABLE=true and SUSFS v2.3.0.
 
   AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH : "master"
@@ -127,6 +128,9 @@ jobs:
       - name: 🛡️ Patch Kernel of NoMount
         uses: ./.github/workflows/patch-nomount
                         
+      - name: 🧬 Patch Kernel of SUSFS Priority UID Filter
+        uses: ./.github/workflows/patch-priority-uid-filter
+
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
