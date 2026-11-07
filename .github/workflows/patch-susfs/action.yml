@@ -105,7 +105,7 @@ runs:
                 echo "[+] SKIP_PATCH enabled or found SUSFS v2.2.00 Fixed Patch, skipping."
                 PACK_FILES
 
-            elif [[ "${{ env.SKIP_PATCH }}" != "true" ]] || [ -z "${{ env.SUSFS_PATCH_FIXED }}" ]; then
+            elif [ ${#REJ_FILES[@]} -gt 0 ]; then
                 echo "[+] SUSFS Patch Version: v${SUSFS_VERSION}. "
                 echo "[-] Found .rej files, Stopped! "
                 PACK_FILES
