@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "chime"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KCFLAGS=-Wno-unused-variable -Wno-error"
 
   KERNEL_SOURCE : "https://github.com/Alvarengga17/valeryn_xiaomi_sm6115.git"
   KERNEL_BRANCH : "build-actions"
