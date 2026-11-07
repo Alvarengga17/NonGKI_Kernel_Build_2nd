@@ -87,6 +87,8 @@ env:
 
   FREE_MORE_SPACE: "false" # if u want get more space, enabled it.
 
+  SKIP_CLEAN_HOOK: "true" # Jangan hapus hook SUSFS/KSU bawaan source (wajib true untuk branch android16-susfs-2.3.0). Butuh edit build-ready/action.yml.
+
 jobs:
   build-kernel:
     name: Xiaomi Redmi 9T (AOSP Based A17) (Kernel 4.19)
