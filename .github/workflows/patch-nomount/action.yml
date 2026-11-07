@@ -12,4 +12,16 @@ runs:
 
           echo "CONFIG_NOMOUNT=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
+          # Guard: stop early if the NoMount patch left rejected hunks
+          mapfile -t REJ_FILES < <(find . -type f -name "*.rej")
+          if [ ${#REJ_FILES[@]} -gt 0 ]; then
+            for CAT_REJ in "${REJ_FILES[@]}"; do
+              echo "[-] Found .rej file: $CAT_REJ"
+              cat "$CAT_REJ"
+              echo "[+] =================================== "
+            done
+            echo "[-] NoMount patch has rejected hunks, Stopped!"
+            exit 1
+          fi
+
           echo "[+] Patched NoMount for your kernel successfully."
