@@ -8,6 +8,18 @@ runs:
         shell: bash
         run: |
           cd $GITHUB_WORKSPACE/device_kernel/
+
+          # BBG setup.sh needs GNU awk (ubuntu:focal ships mawk -> "awk: syntax error")
+          if ! awk --version 2>&1 | grep -q "GNU Awk"; then
+            echo "[+] Installing gawk..."
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get install -y gawk >/dev/null
+            elif command -v pacman >/dev/null 2>&1; then
+              pacman -S --noconfirm gawk >/dev/null
+            fi
+          fi
+          awk --version 2>&1 | head -1
+
           wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
           echo "CONFIG_BBG=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
