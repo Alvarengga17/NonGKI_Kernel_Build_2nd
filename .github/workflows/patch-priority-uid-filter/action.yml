@@ -1,4 +1,6 @@
 name: 'Patch SUSFS PRIORITY_UID_FILTER (kernel side + BakaSU side).'
+# Self-contained: this single file carries the kernel patch and the BakaSU patcher (gzip+base64, sha256-verified).
+# No other file is needed in this folder.
 
 runs:
   using: 'composite'
@@ -6,4 +8,206 @@ runs:
     - name: Patch SUSFS PRIORITY_UID_FILTER
       if: env.SUSFS_ENABLE == 'true' && env.SUSFS_PRIORITY_UID_FILTER == 'true'
       shell: bash
-      run: bash "${{ github.action_path }}/apply.sh" "${{ github.action_path }}"
+      run: |
+          #!/usr/bin/env bash
+          # Adds CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER to an existing SUSFS v2.3.0 kernel + BakaSU.
+          # Idempotent. Any problem => exit 1 (the build stops here instead of producing a silently broken kernel).
+          set -euo pipefail
+
+          ACTION_DIR="$(mktemp -d)"
+          echo "::group::[+] Unpack embedded patch files"
+          base64 -d <<'B64_PATCH' | gzip -dc > "$ACTION_DIR/susfs-priority-uid-filter-kernel.patch"
+          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
+          V+zBfwFdwNlC3lYAAA==
+          B64_PATCH
+          base64 -d <<'B64_PY' | gzip -dc > "$ACTION_DIR/patch_bakasu.py"
+          H4sIAAAAAAAC/61XXU/jOBR976+4kz40EW0KMy+r7jASw8BsBQOIwkorQJEbO41Fake201Kt9r/v
+          dZK2adN0GJgIKqexz7lf5960/aGfadUfc9FnYgbpwsRSfGq14YRSDafXV+fD78HF6D4Y3Y/OR8HN
+          7fD6dnj3T3A//BacDy/vzm5BZ2kqlQEj4St5JqN7cC+YEizBleaUeT7CDSmbptIwYXw4JzzRkMiM
+          Jgtw2Qs3cOTBPGYCiP0LY6mAa5hyrbmYdEFLIAiV4GmISRL1UmLC2G7hCIqbxgnzW3aNZuiF7gKX
+          rZaS0sCxvfeJmswejp4A2oBHY5ARmJjBykznOV85QLlioZHK2uVPfKCKz5jS/eK5zrxWi7IIFHVT
+          b9ACvOYc8bj0ZcqEm3aBiVBStPrYyUzU+8PxgGiIir32UsxkSkDkK0aoW+LNlT2qGyCduVPH7YJg
+          84QLduw8ihpL5M8VN8zVJQHlzJ3qSUlgQ6INZUqV25yH3hM4cAC4Bz9zxNVOmyD3CIHaNk0XoRQR
+          n0DvfVcrxdTkGUK6fgnqtLT91ga3xSNw9tadA1yALhxKFRcGvTh4Wto3AJLYCC8grxVGMbzPPE0Z
+          Rc8wk6w4SGyB+BEX1HVKx9ak+Bn8OLkpQ4EGEfgMh+sg26A6a76ibjtNMB0Q6G0kM0FLxHGF/FEw
+          QadMZJhYsiIc7yPslCc6QCLDFJQ8NRpCKRK5KxTkqtm4I75YA+sjublSJvDonAmCcoOY22oEkqaQ
+          cWwVkZJTmDCDqZBYU4u+rqy5tMsAHy+X+PTRqVFQhiWPYFKsbduxKSJZYmBRexKzJK19aa8e/IWN
+          KNd8bizqP9NM9RAKFUStF6UHlBlsAFwKjbuJwcqS4/zgtJBlxUPXq/jlen4D892SlCiG6tcymSFj
+          TmbtSUn4TCYMBJkyDRNsNwLGC+g86yzQmY40YKiCJWeASEHEE8x3p4nwLIqsCzOGYcQGi7FEJ0Km
+          NeLnPiAGfDmGo0O8ViCl3m1JPgzGTyhLWzcHeDcePBVtqWxSjYorlebkreKjZwcDUyFJkj7lOn/o
+          h/DeVrELdLtvnP74ttTe2d0v9I414mvbR6H54yL8IdEM1txnVydfL8+Ck79Pg8vr78Ho5vr6fHj1
+          fQD/Okt9az9EoRq3wPHgA2ZlS+4bNhV0Ef7/lGbdBoC9kNDklRCypp7Q5pGdE68Z+LWy2/K7Iebo
+          986CzYs8aChyFye39+fOc+UgPaw//W/jmzZ2FAx1vw9v8LGiChzYaUJCViarW+qjTN1ehVRzuCGS
+          Tx5MiUD5q76JlRQsMAr7AVO/KpRNjTRhbuukCH1KlGbr4GMvDLRB4ye6QSbbsK8UCxdhsBJMp423
+          SYZNGefuFM+Vr1hBcefHOBw62zJZI+yUSt2uJUdJu1cSm0leU3Wrhh9Up+hbNbNy/TO+v2Uv/TwN
+          fvzlt5Rt4YxtkMFmd1IM32RNECpGtSsTmq+stlAuj2ImcSjkkQuKMLq1JlXBfGX40YWejHpUBlXk
+          N2SjQt3d1HqjV87v6W0Y/3JCaz/h2kAYEzHBAY4Voo0dQ5koV95gOd7zwV40MNxZDP8J4aKG/jMB
+          utuevKeX5QhNyd7fwOqprbSxyr7y99++X4kUgXzHa/0PzG4SunkOAAA=
+          B64_PY
+          echo "ddb895d1454e4235ed06fab4d5fcf713015626f5fde75853ecfdd9f84f712fbb  $ACTION_DIR/susfs-priority-uid-filter-kernel.patch" | sha256sum -c -
+          echo "54f3d4f0ce4d06a6456ea6ab39e5e47d862355b1b2cf3d5ee0bb6c4bbab990cc  $ACTION_DIR/patch_bakasu.py" | sha256sum -c -
+          echo "::endgroup::"
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          DEFCONFIG="arch/${KERNEL_ARCH}/configs/${DEFCONFIG_NAME}"
+
+          fail() { echo "[-] $*"; exit 1; }
+
+          echo "::group::[+] Pre-checks"
+          [ -f fs/susfs.c ] && [ -f include/linux/susfs.h ] || fail "SUSFS is not integrated in this kernel (fs/susfs.c missing)."
+          SUSFS_VER=$(grep -E '^#define SUSFS_VERSION' include/linux/susfs.h | cut -d' ' -f3 | tr -d '"')
+          echo "[+] SUSFS version in kernel: ${SUSFS_VER}"
+          [ "$SUSFS_VER" = "v2.3.0" ] || fail "This patch is for SUSFS v2.3.0 only (found: ${SUSFS_VER})."
+          [ -f drivers/kernelsu/Kconfig ] || fail "KernelSU (BakaSU) is not set up at drivers/kernelsu."
+          [ -f "$DEFCONFIG" ] || fail "defconfig not found: $DEFCONFIG"
+          command -v patch >/dev/null || fail "'patch' is not installed."
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "[+] Installing python3..."
+            if command -v apt-get >/dev/null 2>&1; then apt-get install -y python3 >/dev/null
+            elif command -v pacman >/dev/null 2>&1; then pacman -S --noconfirm python >/dev/null
+            fi
+            command -v python3 >/dev/null || fail "python3 is not available."
+          fi
+          echo "::endgroup::"
+
+          echo "::group::[+] Kernel side (susfs.c / susfs.h / susfs_def.h / ioprio.c / sys.c)"
+          if grep -q "susfs_is_priority_uid_filtered" fs/susfs.c; then
+            echo "[-] Kernel already contains PRIORITY_UID_FILTER, skipped."
+          else
+            # -F0: no fuzz. Dry-run first so that a mismatch never leaves a half-patched tree.
+            if ! patch -p1 -F0 --dry-run < "$ACTION_DIR/susfs-priority-uid-filter-kernel.patch"; then
+              fail "Kernel patch does not apply cleanly (the kernel source changed?). Nothing was modified."
+            fi
+            patch -p1 -F0 --no-backup-if-mismatch < "$ACTION_DIR/susfs-priority-uid-filter-kernel.patch"
+            echo "[+] Kernel side patched."
+          fi
+          echo "::endgroup::"
+
+          echo "::group::[+] BakaSU side (Kconfig / supercall / throne tracker)"
+          python3 -I "$ACTION_DIR/patch_bakasu.py" "$GITHUB_WORKSPACE/device_kernel/drivers/kernelsu"
+          echo "::endgroup::"
+
+          echo "::group::[+] defconfig"
+          # An earlier (buggy) step may have appended the bare line "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER" (no "=y"): remove it.
+          sed -i '/^CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER$/d' "$DEFCONFIG"
+          grep -q '^CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y$' "$DEFCONFIG" || echo "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y" >> "$DEFCONFIG"
+          grep -n "PRIORITY_UID_FILTER" "$DEFCONFIG"
+          echo "::endgroup::"
+
+          echo "::group::[+] Final verification"
+          chk() { grep -q "$2" "$1" || fail "verification failed: '$2' not found in $1"; echo "  ok: $1"; }
+          chk fs/susfs.c                                   "susfs_is_priority_uid_filtered"
+          chk fs/susfs.c                                   "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER"
+          chk include/linux/susfs.h                        "susfs_set_priority_uid_filter"
+          chk include/linux/susfs_def.h                    "CMD_SUSFS_SET_PRIORITY_UID_FILTER 0x60030"
+          chk block/ioprio.c                               "susfs_is_priority_uid_filtered"
+          chk kernel/sys.c                                 "susfs_is_priority_uid_filtered"
+          chk drivers/kernelsu/Kconfig                     "config KSU_SUSFS_PRIORITY_UID_FILTER"
+          chk drivers/kernelsu/supercall/dispatch.c        "CMD_SUSFS_SET_PRIORITY_UID_FILTER"
+          chk drivers/kernelsu/manager/throne_tracker.c    "susfs_parse_priority_app_strings"
+          if [ "$(grep -c 'susfs_is_priority_uid_filtered' block/ioprio.c)" -lt 3 ]; then fail "ioprio.c hooks incomplete"; fi
+          if [ "$(grep -c 'susfs_is_priority_uid_filtered' kernel/sys.c)" -lt 3 ]; then fail "sys.c hooks incomplete"; fi
+          find . -type f \( -name '*.rej' -o -name '*.orig' \) | grep . && fail "reject files found" || true
+          echo "::endgroup::"
+          echo "[+] SUSFS PRIORITY_UID_FILTER is ready."
