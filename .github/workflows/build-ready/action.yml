@@ -170,11 +170,11 @@ runs:
             elif [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
                 KERNELSU_AUTHOR="Baka-SU"
                 KERNELSU_NAME="BakaSU"
-                KERNELSU_ORIGIN_BRANCH="main"
+                KERNELSU_ORIGIN_BRANCH="sync-up"
                 if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
-                    KERNELSU_BRANCH="main"
+                    KERNELSU_BRANCH="sync-up"
                 else
-                    KERNELSU_BRANCH="main"
+                    KERNELSU_BRANCH="sync-up"
                 fi
 
             else
@@ -194,7 +194,17 @@ runs:
             fi
 
             if [[ "${{ env.KERNELSU_METHOD }}" == "shell" ]]; then
-                curl -sSL "https://raw.githubusercontent.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}/refs/heads/${KERNELSU_ORIGIN_BRANCH}/kernel/setup.sh" | bash -s "$KERNELSU_BRANCH"
+                SETUP_BASE="https://raw.githubusercontent.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}/refs/heads"
+                if ! curl -fsSL "${SETUP_BASE}/${KERNELSU_ORIGIN_BRANCH}/kernel/setup.sh" -o /tmp/ksu_setup.sh; then
+                    if [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
+                        echo "[-] setup.sh not found on ${KERNELSU_ORIGIN_BRANCH}, fallback to main."
+                        curl -fsSL "${SETUP_BASE}/main/kernel/setup.sh" -o /tmp/ksu_setup.sh
+                    else
+                        echo "[-] Could not download setup.sh!"
+                        false
+                    fi
+                fi
+                bash -s "$KERNELSU_BRANCH" < /tmp/ksu_setup.sh
 
             elif [[ "${{ env.KERNELSU_METHOD }}" == "manual" ]]; then
                 git clone "https://github.com/$KERNELSU_AUTHOR/$KERNELSU_NAME.git" -b "$KERNELSU_BRANCH" "$KERNELSU_FOLDER"
