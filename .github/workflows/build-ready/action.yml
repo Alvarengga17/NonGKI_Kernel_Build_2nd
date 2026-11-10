@@ -168,14 +168,11 @@ runs:
                 fi
 
             elif [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
+                # BakaSU: pakai cabang sync-up (SUSFS on/off sama-sama sync-up)
                 KERNELSU_AUTHOR="Baka-SU"
                 KERNELSU_NAME="BakaSU"
                 KERNELSU_ORIGIN_BRANCH="sync-up"
-                if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
-                    KERNELSU_BRANCH="sync-up"
-                else
-                    KERNELSU_BRANCH="sync-up"
-                fi
+                KERNELSU_BRANCH="sync-up"
 
             else
                 echo "[-] Please input vaild fork name!"
@@ -201,10 +198,10 @@ runs:
                         curl -fsSL "${SETUP_BASE}/main/kernel/setup.sh" -o /tmp/ksu_setup.sh
                     else
                         echo "[-] Could not download setup.sh!"
-                        false
+                        exit 1
                     fi
                 fi
-                bash -s "$KERNELSU_BRANCH" < /tmp/ksu_setup.sh
+                bash /tmp/ksu_setup.sh "$KERNELSU_BRANCH"
 
             elif [[ "${{ env.KERNELSU_METHOD }}" == "manual" ]]; then
                 git clone "https://github.com/$KERNELSU_AUTHOR/$KERNELSU_NAME.git" -b "$KERNELSU_BRANCH" "$KERNELSU_FOLDER"
@@ -258,6 +255,27 @@ runs:
 
           fi
           echo "KERNELSU_METHOD=${{ env.KERNELSU_METHOD }}" >> $GITHUB_ENV
+
+      - name: Fix BakaSU sync-up compat (old kernel)
+        if: env.KERNELSU_AUTO_GET == 'true' && env.KERNELSU_AUTO_FORK == 'bakasu'
+        shell: bash
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+
+          # Di kernel 4.19 set_fixmap_offset() mengembalikan unsigned long,
+          # sedangkan sync-up menganggapnya void * -> error -Wint-conversion.
+          # Cast eksplisit aman untuk kernel lama maupun baru (idempotent).
+          PM_FILE="drivers/kernelsu/hook/arm64/patch_memory.c"
+          if [[ -f "$PM_FILE" ]]; then
+            if grep -qE 'void \*map = set_fixmap_offset\(' "$PM_FILE"; then
+              sed -i -E 's/void \*map = set_fixmap_offset\(/void *map = (void *)set_fixmap_offset(/' "$PM_FILE"
+              echo "[+] Patched set_fixmap_offset cast in patch_memory.c"
+            else
+              echo "[-] patch_memory.c: no cast fix needed, Skipped."
+            fi
+          else
+            echo "[-] patch_memory.c not found, Skipped."
+          fi
 
       - name: KPM Function Support
         if: env.KPM_ENABLE == 'true'
