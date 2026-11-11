@@ -131,6 +131,18 @@ jobs:
       - name: 🧬 Patch Kernel of SUSFS Priority UID Filter
         uses: ./.github/workflows/patch-priority-uid-filter
 
+      - name: 🧹 Hide dirty tag (cosmetic)
+        shell: bash
+        run: |
+          KSU_DIR="$GITHUB_WORKSPACE/device_kernel/KernelSU"
+          if [[ -d "$KSU_DIR/.git" ]]; then
+            cd "$KSU_DIR"
+            git diff HEAD --name-only -z | xargs -0 -r git update-index --assume-unchanged
+            echo "[+] KernelSU version tag: $(git describe --tags --always --dirty)"
+          else
+            echo "[-] $KSU_DIR is not a git repo, Skipped."
+          fi
+
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
