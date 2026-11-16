@@ -168,11 +168,20 @@ runs:
                 fi
 
             elif [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
-                # BakaSU: pakai cabang sync-up (SUSFS on/off sama-sama sync-up)
-                KERNELSU_AUTHOR="Baka-SU"
+                # Owner repo BakaSU: isi env BAKASU_OWNER (fork kamu). Kosong = upstream Baka-SU.
+                KERNELSU_AUTHOR="${{ env.BAKASU_OWNER }}"
+                [[ -z "$KERNELSU_AUTHOR" ]] && KERNELSU_AUTHOR="Baka-SU"
                 KERNELSU_NAME="BakaSU"
-                KERNELSU_ORIGIN_BRANCH="sync-up"
-                KERNELSU_BRANCH="sync-up"
+                # Cabang BakaSU: isi env BAKASU_BRANCH (sync-up, main, atau cabang milik fork kamu). Kosong = sync-up.
+                KERNELSU_BRANCH="${{ env.BAKASU_BRANCH }}"
+                [[ -z "$KERNELSU_BRANCH" ]] && KERNELSU_BRANCH="sync-up"
+                KERNELSU_ORIGIN_BRANCH="$KERNELSU_BRANCH"
+                # Cabang harus ada di repo itu. Tanpa cek ini setup.sh diam-diam memakai cabang bawaan repo.
+                if ! git ls-remote --exit-code --heads "https://github.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}.git" "refs/heads/${KERNELSU_BRANCH}" > /dev/null 2>&1; then
+                    echo "[-] Branch '${KERNELSU_BRANCH}' not found in https://github.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}!"
+                    echo "[-] Check BAKASU_OWNER and BAKASU_BRANCH."
+                    false
+                fi
 
             else
                 echo "[-] Please input vaild fork name!"
@@ -201,7 +210,26 @@ runs:
                         exit 1
                     fi
                 fi
+                # setup.sh meng-hardcode "git clone https://github.com/Baka-SU/BakaSU",
+                # jadi URL clone-nya harus diarahkan ke fork sebelum script dijalankan.
+                if [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
+                    sed -i "s#github.com/Baka-SU/BakaSU#github.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}#g" /tmp/ksu_setup.sh
+                    if ! grep -q "github.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME}" /tmp/ksu_setup.sh; then
+                        echo "[-] Failed to redirect setup.sh clone URL to ${KERNELSU_AUTHOR}/${KERNELSU_NAME}!"
+                        exit 1
+                    fi
+                    echo "[+] BakaSU source: https://github.com/${KERNELSU_AUTHOR}/${KERNELSU_NAME} (branch ${KERNELSU_BRANCH})"
+                fi
                 bash /tmp/ksu_setup.sh "$KERNELSU_BRANCH"
+                if [[ "${{ env.KERNELSU_AUTO_FORK }}" == "bakasu" ]]; then
+                    BAKASU_ACTUAL_BRANCH="$(git -C "$KERNELSU_FOLDER" rev-parse --abbrev-ref HEAD)"
+                    echo "[+] KernelSU origin: $(git -C "$KERNELSU_FOLDER" remote get-url origin)"
+                    echo "[+] KernelSU branch: ${BAKASU_ACTUAL_BRANCH}"
+                    if [[ "$BAKASU_ACTUAL_BRANCH" != "$KERNELSU_BRANCH" ]]; then
+                        echo "[-] Expected branch '${KERNELSU_BRANCH}' but got '${BAKASU_ACTUAL_BRANCH}'!"
+                        exit 1
+                    fi
+                fi
 
             elif [[ "${{ env.KERNELSU_METHOD }}" == "manual" ]]; then
                 git clone "https://github.com/$KERNELSU_AUTHOR/$KERNELSU_NAME.git" -b "$KERNELSU_BRANCH" "$KERNELSU_FOLDER"
