@@ -1,0 +1,157 @@
+name: 'De-inline BakaSU-style KernelSU hooks (for xxKSU).'
+# xxKSU hooks sucompat / reboot / setuid / input / init.rc by itself (ARM64 branch-link or syscall table + LSM).
+# The inline ksu_handle_* call sites that SUSFS ships in the kernel would then be undefined symbols, so they are removed here.
+# Pure SUSFS code (susfs_*) is kept. Idempotent. Used by the xxKSU workflow only.
+
+runs:
+  using: 'composite'
+  steps:
+    - name: De-inline KernelSU hooks
+      shell: bash
+      run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          if ! command -v python3 >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then apt-get install -y python3 >/dev/null
+            elif command -v pacman >/dev/null 2>&1; then pacman -S --noconfirm python >/dev/null
+            fi
+          fi
+          DI="$(mktemp -d)"
+          cat > "$DI/deinline_xxksu.py" <<'PYEOF'
+          #!/usr/bin/env python3
+          """
+          Remove the BakaSU-style *inline* KernelSU hooks (ksu_handle_* / ksu_is_*_hook_enabled
+          call sites) from a kernel tree that already carries SUSFS, so the tree can be used with
+          xxKSU (backslashxx / midori01 'xx'), which hooks sucompat + sys_reboot + setuid + input +
+          init.rc itself (syscall table / ARM64 branch-link / LSM).
+          Pure SUSFS code (susfs_*) is kept. Every edit must match exactly once, or already be gone.
+          Usage: deinline_xxksu.py <kernel_tree>
+          """
+          import re, sys, os
+
+          root = sys.argv[1]
+          errors = 0
+          changed = 0
+
+
+          def edit(path, name, pattern, repl, marker):
+              """pattern: regex (re.S). Must match exactly once. If absent and `marker` absent -> already clean."""
+              global errors, changed
+              fp = os.path.join(root, path)
+              s = open(fp, encoding="utf-8", errors="surrogateescape").read()
+              n = len(re.findall(pattern, s, flags=re.S))
+              if n == 1:
+                  s = re.sub(pattern, repl, s, count=1, flags=re.S)
+                  open(fp, "w", encoding="utf-8", errors="surrogateescape").write(s)
+                  changed += 1
+                  print(f"[+] {path}: {name}")
+              elif n == 0 and marker not in s:
+                  print(f"[=] {path}: {name} (already clean)")
+              else:
+                  errors += 1
+                  print(f"[!] {path}: {name}: pattern matched {n}x (expected 1)")
+
+
+          # ---------------- fs/exec.c ----------------
+          edit("fs/exec.c", "extern block",
+               r"#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_su_compat_enabled;\n"
+               r"(?:extern [^\n]*\n(?:\t+[^\n]*\n)?)*?#endif\n(?=static int __do_execve_file)",
+               "", "ksu_handle_execveat(int *fd")
+          edit("fs/exec.c", "is_su_session decl",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tbool is_su_session = false;\n#endif // #ifdef CONFIG_KSU_SUSFS\n\n",
+               "", "is_su_session = false")
+          edit("fs/exec.c", "pre-exec hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tif \(likely\(susfs_is_current_proc_no_su\(\)\)\)\n\t\tgoto orig_flow;\n"
+               r"\tif \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{.*?\n\t\}\norig_flow:\n#endif\n",
+               "", "ksu_handle_execveat_sucompat(&fd")
+          edit("fs/exec.c", "post-exec hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tif \(unlikely\(is_su_session\)\)\n\t\t\(void\)ksu_handle_post_execveat_sucompat\([^\n]*\n#endif // #ifdef CONFIG_KSU_SUSFS\n\n",
+               "", "ksu_handle_post_execveat_sucompat(&fd")
+
+          # ---------------- fs/open.c ----------------
+          edit("fs/open.c", "extern block",
+               r"#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_su_compat_enabled;\n"
+               r"extern bool __ksu_is_allow_uid_for_current\(uid_t uid\);\n"
+               r"extern int ksu_handle_faccessat\([^\n]*\n[^\n]*\n#endif\n",
+               "", "ksu_handle_faccessat(int *dfd")
+          edit("fs/open.c", "fname decl",
+               r"\n#ifdef CONFIG_KSU_SUSFS\n\tstruct filename \*fname = NULL;\n#endif\n",
+               "", "struct filename *fname = NULL")
+          edit("fs/open.c", "faccessat hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tfname = getname_flags\(filename, lookup_flags, NULL\);\n.*?"
+               r"\tres = filename_lookup\(dfd, fname, lookup_flags, &path, NULL\);\n[^\n]*\n#else\n"
+               r"(\tres = user_path_at\(dfd, filename, lookup_flags, &path\);\n)#endif\n",
+               r"\1", "ksu_handle_faccessat(&dfd")
+
+          # ---------------- fs/stat.c ----------------
+          edit("fs/stat.c", "extern block",
+               r"#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_is_init_rc_hook_enabled;\n"
+               r"extern void ksu_handle_vfs_fstat\([^\n]*\nextern struct static_key_true ksu_su_compat_enabled;\n"
+               r"extern bool __ksu_is_allow_uid_for_current\(uid_t uid\);\n"
+               r"extern int ksu_handle_stat\([^\n]*\n#endif // #ifdef CONFIG_KSU_SUSFS\n\n",
+               "", "ksu_handle_vfs_fstat(int fd")
+          edit("fs/stat.c", "vfs_fstat hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\t\tif \(static_branch_unlikely\(&ksu_is_init_rc_hook_enabled\)\)\n"
+               r"\t\t\tksu_handle_vfs_fstat\(fd, &stat->size\);\n#endif // #ifdef CONFIG_KSU_SUSFS\n\n",
+               "", "ksu_handle_vfs_fstat(fd, &stat->size)")
+          edit("fs/stat.c", "fname decl",
+               r"\n#ifdef CONFIG_KSU_SUSFS\n\tstruct filename \*fname = NULL;\n#endif\n",
+               "", "struct filename *fname = NULL")
+          edit("fs/stat.c", "stat hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tfname = getname_flags\(filename, lookup_flags, NULL\);\n.*?"
+               r"\terror = filename_lookup\(dfd, fname, lookup_flags, &path, NULL\);\n[^\n]*\n#else\n"
+               r"(\terror = user_path_at\(dfd, filename, lookup_flags, &path\);\n)#endif\n",
+               r"\1", "ksu_handle_stat(&dfd")
+
+          # ---------------- fs/read_write.c ----------------
+          edit("fs/read_write.c", "extern block",
+               r"#ifdef CONFIG_KSU\nextern struct static_key_true ksu_is_init_rc_hook_enabled;\n"
+               r"extern __attribute__\(\(cold\)\) int ksu_handle_sys_read\(unsigned int fd\);\n#endif\n",
+               "", "ksu_handle_sys_read(unsigned int fd)")
+          edit("fs/read_write.c", "read hook",
+               r"#ifdef CONFIG_KSU\n\tif \(static_branch_unlikely\(&ksu_is_init_rc_hook_enabled\)\)\n"
+               r"\t\tksu_handle_sys_read\(fd\);\n#endif\n",
+               "", "ksu_handle_sys_read(fd)")
+
+          # ---------------- drivers/input/input.c ----------------
+          edit("drivers/input/input.c", "extern block",
+               r"#ifdef CONFIG_KSU\nextern struct static_key_true ksu_is_input_hook_enabled;\n"
+               r"extern int ksu_handle_input_handle_event\([^\n]*\n#endif\n\n",
+               "", "ksu_handle_input_handle_event(unsigned")
+          edit("drivers/input/input.c", "input hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tif \(static_branch_unlikely\(&ksu_is_input_hook_enabled\)\)\n"
+               r"\t\tksu_handle_input_handle_event\(&type, &code, &value\);\n#endif\n",
+               "", "ksu_handle_input_handle_event(&type")
+
+          # ---------------- kernel/sys.c ----------------
+          edit("kernel/sys.c", "extern block",
+               r"#ifdef CONFIG_KSU\nextern int ksu_handle_setresuid\(uid_t ruid, uid_t euid, uid_t suid\);\n#endif\n\n",
+               "", "ksu_handle_setresuid(uid_t")
+          edit("kernel/sys.c", "setresuid hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n\tif \(ksu_handle_setresuid\(ruid, euid, suid\)\) \{\n[^\n]*\n\t\}\n#endif\n\n",
+               "", "ksu_handle_setresuid(ruid")
+
+          # ---------------- kernel/reboot.c ----------------
+          edit("kernel/reboot.c", "extern block",
+               r"#ifdef CONFIG_KSU_SUSFS\nextern int ksu_handle_sys_reboot\([^\n]*\n#endif\n\n",
+               "", "ksu_handle_sys_reboot(int magic1")
+          edit("kernel/reboot.c", "reboot hook",
+               r"#ifdef CONFIG_KSU_SUSFS\n[ \t]*if \(system_state == SYSTEM_RUNNING\) \{\n"
+               r"[ \t]*ksu_handle_sys_reboot\(magic1, magic2, cmd, &arg\);\n[ \t]*\}\n#endif\n",
+               "", "ksu_handle_sys_reboot(magic1")
+
+          print(f"\nchanged={changed} errors={errors}")
+          sys.exit(1 if errors else 0)
+          PYEOF
+          echo "::group::[+] De-inline"
+          python3 -I "$DI/deinline_xxksu.py" "$GITHUB_WORKSPACE/device_kernel"
+          echo "::endgroup::"
+
+          echo "::group::[+] Verify: no inline KernelSU call sites left"
+          LEFT=$(grep -rnE "ksu_handle_|ksu_is_(init_rc|input)_hook_enabled|ksu_su_compat_enabled|__ksu_is_allow_uid_for_current" \
+                   fs kernel drivers/input security block mm include arch/${KERNEL_ARCH} 2>/dev/null | grep -v "^drivers/kernelsu" | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)" || true)
+          if [[ -n "$LEFT" ]]; then
+            echo "[-] Leftover inline hooks:"; echo "$LEFT"; exit 1
+          fi
+          echo "[+] Clean."
+          echo "::endgroup::"
