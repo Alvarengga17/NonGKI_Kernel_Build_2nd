@@ -139,6 +139,9 @@ jobs:
       - name: 🧬 Patch Kernel of SUSFS Priority UID Filter
         uses: ./.github/workflows/patch-priority-uid-filter
 
+      - name: 🩹 Fix SUSFS sus_path flag
+        uses: ./.github/workflows/fix-susfs-sus-path-flag
+
       - name: ⛔ Patch Kernel of fgetpriority
         uses: ./.github/workflows/patch-fgetpriority
 
