@@ -1,0 +1,29 @@
+name: 'Fix SUSFS sus_path flag mismatch (i_state vs i_mapping->flags).'
+# SUSFS "newest sync" (after v2.4.0) tests AS_FLAGS_SUS_PATH in inode->i_mapping->flags, but add_sus_path()/add_sus_path_loop()
+# still SET the bit in inode->i_state. Different words => susfs_is_inode_sus_path() never matches => sus_path hides NOTHING
+# (symptom: BRENE "Hide Custom Recovery Paths" / Fox folder stays visible). This makes the SET side match the TEST side.
+# Idempotent: only acts when the mismatch is present; does nothing if upstream already fixed it. Used after the SUSFS upgrade step.
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fix sus_path flag mismatch
+      if: env.SUSFS_ENABLE == 'true'
+      shell: bash
+      run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          F=fs/susfs.c
+          [[ -f "$F" ]] || { echo "[=] $F not found, skip"; exit 0; }
+          TEST_MAP=$(grep -cE 'test_bit\(AS_FLAGS_SUS_PATH, &[A-Za-z_>.-]*i_mapping->flags\)' "$F" || true)
+          SET_STATE=$(grep -cE 'set_bit\(AS_FLAGS_SUS_PATH, &[A-Za-z_>.-]*i_state\)' "$F" || true)
+          echo "[*] test on i_mapping->flags: $TEST_MAP | set on i_state: $SET_STATE"
+          if [[ "$TEST_MAP" -gt 0 && "$SET_STATE" -gt 0 ]]; then
+            sed -i -E 's/set_bit\(AS_FLAGS_SUS_PATH, &fi->inode\.i_state\)/set_bit(AS_FLAGS_SUS_PATH, \&fi->inode.i_mapping->flags)/; s/set_bit\(AS_FLAGS_SUS_PATH, &inode->i_state\)/set_bit(AS_FLAGS_SUS_PATH, \&inode->i_mapping->flags)/' "$F"
+            LEFT=$(grep -cE 'set_bit\(AS_FLAGS_SUS_PATH, &[A-Za-z_>.-]*i_state\)' "$F" || true)
+            NEW=$(grep -cE 'set_bit\(AS_FLAGS_SUS_PATH, &[A-Za-z_>.-]*i_mapping->flags\)' "$F" || true)
+            [[ "$LEFT" -eq 0 && "$NEW" -eq "$SET_STATE" ]] || { echo "[-] sus_path flag fix incomplete (left=$LEFT new=$NEW)"; exit 1; }
+            echo "[+] Fixed $NEW set_bit site(s): now set + test both use i_mapping->flags."
+          else
+            echo "[=] No mismatch (test_map=$TEST_MAP set_state=$SET_STATE). Nothing to do."
+          fi
