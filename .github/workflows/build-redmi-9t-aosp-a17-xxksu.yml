@@ -137,6 +137,10 @@ jobs:
       - name: 🧬 Upgrade SUSFS (kernel only)
         uses: ./.github/workflows/patch-susfs-kernel-only
 
+      # Perbaiki penanda sus_path (set di i_state vs test di i_mapping->flags) supaya path benar-benar tersembunyi
+      - name: 🩹 Fix SUSFS sus_path flag
+        uses: ./.github/workflows/fix-susfs-sus-path-flag
+
       # Buang hook inline bergaya BakaSU; xxKSU memasang hook-nya sendiri
       - name: ✂️ De-inline KernelSU hooks
         uses: ./.github/workflows/patch-xxksu-deinline
