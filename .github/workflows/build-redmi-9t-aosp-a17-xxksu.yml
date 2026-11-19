@@ -31,7 +31,7 @@ env:
 
   # xxKSU (backslashxx) + jembatan SUSFS dari midori01. Memakai jalur manual, BUKAN auto-fork,
   # supaya workflow BakaSU tidak tersentuh. Nanti boleh diganti fork milikmu sendiri.
-  KERNELSU_SOURCE : "https://github.com/Alvarengga17/KernelSU"
+  KERNELSU_SOURCE : "https://github.com/midori01/KernelSU"
   KERNELSU_BRANCH : "xx"
 
   KERNELSU_AUTO_GET : "false"
