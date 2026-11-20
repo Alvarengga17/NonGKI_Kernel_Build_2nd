@@ -1,13 +1,17 @@
-name: 'Fix SUSFS sus_path flag mismatch (i_state vs i_mapping->flags).'
-# SUSFS "newest sync" (after v2.4.0) tests AS_FLAGS_SUS_PATH in inode->i_mapping->flags, but add_sus_path()/add_sus_path_loop()
-# still SET the bit in inode->i_state. Different words => susfs_is_inode_sus_path() never matches => sus_path hides NOTHING
-# (symptom: BRENE "Hide Custom Recovery Paths" / Fox folder stays visible). This makes the SET side match the TEST side.
-# Idempotent: only acts when the mismatch is present; does nothing if upstream already fixed it. Used after the SUSFS upgrade step.
+name: 'Fix + guard SUSFS sus_path flag (i_state vs i_mapping->flags).'
+# History: an older SUSFS "newest sync" SET AS_FLAGS_SUS_PATH in inode->i_state but TESTED it in inode->i_mapping->flags
+# (different words => susfs_is_inode_sus_path() never matched => sus_path hid NOTHING, JackA1ltman/NonGKI_Kernel_Build_2nd#220).
+# Upstream fixed it (susfs_patch_to_4.19.patch of 20 Nov 2026: set AND test on i_state), so normally this action is a no-op.
+#
+# 1) FIX  : if the old mismatch (test on i_mapping->flags, set on i_state) shows up again, make the SET side match the TEST side.
+#           Idempotent, does nothing when there is no mismatch.
+# 2) GUARD: afterwards the set_bit and test_bit sides MUST use the very same word, otherwise the build STOPS here instead of
+#           producing a kernel whose sus_path silently hides nothing. Place it right after the SUSFS upgrade step.
 
 runs:
   using: 'composite'
   steps:
-    - name: Fix sus_path flag mismatch
+    - name: Fix + guard sus_path flag
       if: env.SUSFS_ENABLE == 'true'
       shell: bash
       run: |
@@ -25,5 +29,15 @@ runs:
             [[ "$LEFT" -eq 0 && "$NEW" -eq "$SET_STATE" ]] || { echo "[-] sus_path flag fix incomplete (left=$LEFT new=$NEW)"; exit 1; }
             echo "[+] Fixed $NEW set_bit site(s): now set + test both use i_mapping->flags."
           else
-            echo "[=] No mismatch (test_map=$TEST_MAP set_state=$SET_STATE). Nothing to do."
+            echo "[=] No mismatch (test_map=$TEST_MAP set_state=$SET_STATE). Nothing to fix."
           fi
+
+          # GUARD: set and test must use exactly the same word, and both must exist.
+          words() { grep -oE "$1_bit\(AS_FLAGS_SUS_PATH, &[A-Za-z_>.-]*(i_state|i_mapping->flags)\)" "$F" | sed -E 's/.*(i_state|i_mapping->flags)\)$/\1/' | sort -u | tr '\n' ' ' || true; }
+          SET_W=$(words set); TEST_W=$(words test)
+          echo "[*] guard: set_bit word(s): '${SET_W}' | test_bit word(s): '${TEST_W}'"
+          if [[ -z "${SET_W// /}" || -z "${TEST_W// /}" || "$SET_W" != "$TEST_W" ]]; then
+            echo "[-] sus_path flag is NOT consistent (set='${SET_W}' test='${TEST_W}'): sus_path would hide nothing. Build stopped."
+            exit 1
+          fi
+          echo "[+] sus_path flag consistent: both set and test use '${TEST_W% }'."
