@@ -163,6 +163,29 @@ jobs:
           echo "[+] xxKSU hook mode: ${{ env.XXKSU_HOOK_MODE }}"
           grep -nE "CONFIG_KSU|CONFIG_KALLSYMS|THREAD_INFO_IN_TASK" "$DEFCONFIG"
 
+      # KernelSU `xx` (midori01) sering di-force-push. Commit baru (46aa28b5e) membuat ksu.o gagal dengan
+      # "-Werror,-Wstrict-prototypes". Flag -Wno via cc-option di Makefile-nya tidak ikut berlaku di CI ini,
+      # jadi di sini ditambahkan TANPA cc-option (langsung), di akhir Makefile (tempat yang memang disiapkan untuk append).
+      - name: 🩹 Relax warnings for KernelSU ksu.o
+        shell: bash
+        run: |
+          set -euo pipefail
+          MK="$GITHUB_WORKSPACE/device_kernel/KernelSU/kernel/Makefile"
+          [[ -f "$MK" ]] || { echo "[-] $MK not found"; exit 1; }
+          MARK="# ci: relax warnings for ksu.o"
+          if grep -qF "$MARK" "$MK"; then
+            echo "[=] Already applied."
+          else
+            [[ -z "$(tail -c1 "$MK")" ]] || echo >> "$MK"
+            printf '%s\n' \
+              "$MARK" \
+              'CFLAGS_ksu.o += -Wno-strict-prototypes -Wno-error=strict-prototypes' \
+              'CFLAGS_ksu.o += -Wno-error' >> "$MK"
+          fi
+          grep -qF -- "CFLAGS_ksu.o += -Wno-strict-prototypes -Wno-error=strict-prototypes" "$MK" \
+            || { echo "[-] flag not present in Makefile"; exit 1; }
+          echo "[+] ksu.o relaxed. Tail of $MK:"; tail -n 5 "$MK"
+
       - name: 🧹 Hide dirty tag (cosmetic)
         shell: bash
         run: |
