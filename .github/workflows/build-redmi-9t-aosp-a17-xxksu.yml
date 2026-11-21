@@ -163,9 +163,13 @@ jobs:
           echo "[+] xxKSU hook mode: ${{ env.XXKSU_HOOK_MODE }}"
           grep -nE "CONFIG_KSU|CONFIG_KALLSYMS|THREAD_INFO_IN_TASK" "$DEFCONFIG"
 
-      # KernelSU `xx` (midori01) sering di-force-push. Commit baru (46aa28b5e) membuat ksu.o gagal dengan
-      # "-Werror,-Wstrict-prototypes". Flag -Wno via cc-option di Makefile-nya tidak ikut berlaku di CI ini,
-      # jadi di sini ditambahkan TANPA cc-option (langsung), di akhir Makefile (tempat yang memang disiapkan untuk append).
+      # KernelSU `xx` (midori01) sering di-force-push.
+      #  - Commit 46aa28b5e membuat ksu.o gagal dengan "-Werror,-Wstrict-prototypes".
+      #  - Commit c1671c764 (build #8) membuat ksu.o gagal dengan "-Werror,-Wincompatible-pointer-types-discards-qualifiers"
+      #    (const dibuang di selinux_hide / lsm_hooks_list / branch_link_hook_arm64). Kernel 4.19 punya
+      #    -Werror=incompatible-pointer-types secara spesifik, jadi -Wno-error biasa TIDAK cukup; harus dibatalkan per-grup.
+      # Semua file itu di-include dari ksu.c, jadi CFLAGS_ksu.o sudah menutupinya. Flag ditambahkan TANPA cc-option (langsung),
+      # di akhir Makefile (tempat yang memang disiapkan untuk append); CFLAGS_ksu.o dibaca terakhir, jadi menang atas KBUILD_CFLAGS.
       - name: 🩹 Relax warnings for KernelSU ksu.o
         shell: bash
         run: |
@@ -180,10 +184,15 @@ jobs:
             printf '%s\n' \
               "$MARK" \
               'CFLAGS_ksu.o += -Wno-strict-prototypes -Wno-error=strict-prototypes' \
+              'CFLAGS_ksu.o += -Wno-incompatible-pointer-types-discards-qualifiers' \
+              'CFLAGS_ksu.o += -Wno-error=incompatible-pointer-types' \
+              'CFLAGS_ksu.o += -Wno-error=incompatible-pointer-types-discards-qualifiers' \
               'CFLAGS_ksu.o += -Wno-error' >> "$MK"
           fi
           grep -qF -- "CFLAGS_ksu.o += -Wno-strict-prototypes -Wno-error=strict-prototypes" "$MK" \
-            || { echo "[-] flag not present in Makefile"; exit 1; }
+            || { echo "[-] flag not present in Makefile (strict-prototypes)"; exit 1; }
+          grep -qF -- "CFLAGS_ksu.o += -Wno-error=incompatible-pointer-types" "$MK" \
+            || { echo "[-] flag not present in Makefile (incompatible-pointer-types)"; exit 1; }
           echo "[+] ksu.o relaxed. Tail of $MK:"; tail -n 5 "$MK"
 
       - name: 🧹 Hide dirty tag (cosmetic)
