@@ -41,6 +41,12 @@ env:
   #   syscalltable  : CONFIG_KSU_TAMPER_SYSCALL_TABLE   (cadangan kalau branchlink bootloop/tidak jalan)
   XXKSU_HOOK_MODE : "branchlink"
 
+  # KernelSU-Next (KSUN) manager support, ditambahkan di atas xx midori01 tanpa mengubah xxKSU/KowSU/MidoriSU.
+  #   "false" : KSU_VERSION tetap bawaan xx (32733). Driver 3 manager lain 100% seperti buatan midori01. (coba ini dulu)
+  #   "true"  : naikkan jadi 33554 / v3.4.2 seperti fork ShockWave. Pakai HANYA kalau KSUN masih ditolak walau
+  #             dmesg menunjukkan "is_manager: 1". Berlaku untuk SEMUA manager.
+  KSUN_BUMP_VERSION : "false"
+
   SUSFS_ENABLE : true
   SUSFS_FIXED : false
   SUSFS_PRIORITY_UID_FILTER : true # Dipakai untuk memicu upgrade SUSFS kernel ke v2.4.0 (action patch-susfs-kernel-only).
@@ -144,6 +150,11 @@ jobs:
       # Buang hook inline bergaya BakaSU; xxKSU memasang hook-nya sendiri
       - name: ✂️ De-inline KernelSU hooks
         uses: ./.github/workflows/patch-xxksu-deinline
+
+      # Tambah KernelSU-Next: signature + nama paket (com.rifsxd.ksunext) + ioctl info (K,98/K,99). Idempotent.
+      # Harus SETELAH de-inline dan SEBELUM build. Driver xx / KowSU / MidoriSU tidak diubah.
+      - name: 🧩 Add KernelSU-Next manager support
+        uses: ./.github/workflows/patch-xxksu-multimanager
 
       - name: 🪝 Set xxKSU hook method + KALLSYMS
         shell: bash
