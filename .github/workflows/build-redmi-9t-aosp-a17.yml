@@ -38,8 +38,8 @@ env:
   #   Fork kamu, cabang cermin       : OWNER "Alvarengga17" , BRANCH "sync-up" atau "main"
   #   Fork kamu, cabang dengan edit  : OWNER "Alvarengga17" , BRANCH "sync-up17" atau "main17"
   #   BakaSU resmi                   : OWNER "Baka-SU" (atau kosong) , BRANCH "sync-up" atau "main"
-  BAKASU_OWNER : "Alvarengga17" # owner repo BakaSU. Kosong = Baka-SU (resmi).
-  BAKASU_BRANCH : "sync-up" # cabang BakaSU. Kosong = sync-up.
+  BAKASU_OWNER : "Baka-SU" # owner repo BakaSU. Kosong = Baka-SU (resmi).
+  BAKASU_BRANCH : "main" # cabang BakaSU. Kosong = sync-up.
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : false
