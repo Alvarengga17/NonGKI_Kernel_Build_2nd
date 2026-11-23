@@ -39,7 +39,7 @@ env:
   #   Fork kamu, cabang dengan edit  : OWNER "Alvarengga17" , BRANCH "sync-up17" atau "main17"
   #   BakaSU resmi                   : OWNER "Baka-SU" (atau kosong) , BRANCH "sync-up" atau "main"
   BAKASU_OWNER : "Baka-SU" # owner repo BakaSU. Kosong = Baka-SU (resmi).
-  BAKASU_BRANCH : "fix-622-regression" # cabang BakaSU. Kosong = sync-up.
+  BAKASU_BRANCH : "main" # cabang BakaSU. Kosong = sync-up.
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : false
