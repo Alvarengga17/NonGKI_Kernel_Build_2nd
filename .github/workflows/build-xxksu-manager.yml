@@ -16,6 +16,10 @@ on:
         description: "Branch, tag or commit SHA"
         required: true
         default: "xx"
+      version_name:
+        description: "Manager version name (empty = auto: latest upstream tag + commits since, e.g. v3.3.1+154)"
+        required: false
+        default: ""
       strip_ksud:
         description: "Strip libksud.so (smaller APK)"
         type: boolean
@@ -50,6 +54,30 @@ jobs:
           echo "[+] Describe: $(git describe --tags --always)"
           echo "[+] Kernel KSU_VERSION: $(grep -oE 'KSU_VERSION=[0-9]+' kernel/Makefile | head -1)"
           test -f manager/dummy.keystore || { echo "[-] manager/dummy.keystore missing"; exit 1; }
+
+      # ---------- manager version name: v<latest upstream tag>+<commits since> ----------
+      - name: Set manager version name
+        env:
+          VERSION_NAME_INPUT: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          NAME="$VERSION_NAME_INPUT"
+          if [ -z "$NAME" ]; then
+            # upstream release tags (vX.Y.Z); the fork only carries its own date tags
+            git fetch --quiet --no-tags https://github.com/tiann/KernelSU 'refs/tags/v*:refs/tags/v*' || echo "[!] could not fetch upstream tags"
+            TAG=$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || true)
+            if [ -n "$TAG" ]; then
+              NAME="${TAG}+$(git rev-list --count "${TAG}..HEAD")"
+            else
+              NAME="$(git describe --tags --always)"
+            fi
+          fi
+          if ! [[ "$NAME" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+            echo "[-] invalid version name: $NAME"; exit 1
+          fi
+          echo "[+] manager versionName: $NAME"
+          sed -i "s|return getGitDescribe()|return \"${NAME}\"|" manager/build.gradle.kts
+          grep -n "return \"${NAME}\"" manager/build.gradle.kts || { echo "[-] failed to patch versionName"; exit 1; }
 
       # ---------- ksud (arm64) ----------
       - name: Setup Rust
