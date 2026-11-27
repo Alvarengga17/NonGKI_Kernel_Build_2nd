@@ -149,7 +149,7 @@ jobs:
 
           # package name must match KSU_PACKAGE_NAME of the kernel
           KERNEL_PKG=$(grep -m1 '^KSU_PACKAGE_NAME' kernel/Makefile | sed 's/.*:= *//')
-          APK_PKG=$("$BT/aapt2" dump badging "$APK" | grep -m1 '^package:' | sed -E "s/.*name='([^']+)'.*/\1/")
+          APK_PKG=$("$BT/aapt2" dump badging "$APK" | grep -m1 '^package:' | sed -E "s/^package: name='([^']+)'.*/\1/")
           echo "[+] package: apk=$APK_PKG kernel=$KERNEL_PKG"
           [ "$APK_PKG" = "$KERNEL_PKG" ] || { echo "[-] package name mismatch"; exit 1; }
 
