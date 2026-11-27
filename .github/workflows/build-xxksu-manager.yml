@@ -1,0 +1,176 @@
+name: Build xxKSU Manager (KernelSU)
+
+# Builds the KernelSU manager APK from midori01/KernelSU (branch xx by default),
+# signed with the repo's dummy.keystore so the xxKSU kernel accepts it
+# (cert size 0x0363, sha256 4359c171...c21549 is in kernel/manager/apk_sign.c).
+# Only arm64-v8a is packed (Redmi 9T). LKM / ksuinit are NOT needed: the kernel is built-in.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_repo:
+        description: "KernelSU source repository (owner/name)"
+        required: true
+        default: "midori01/KernelSU"
+      ksu_ref:
+        description: "Branch, tag or commit SHA"
+        required: true
+        default: "xx"
+      strip_ksud:
+        description: "Strip libksud.so (smaller APK)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-manager:
+    name: Build xxKSU manager (arm64-v8a)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: ksu
+
+    steps:
+      - name: Checkout KernelSU source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ksu_repo }}
+          ref: ${{ inputs.ksu_ref }}
+          path: ksu
+          fetch-depth: 0 # manager versionCode/versionName come from git history
+
+      - name: Show source commit
+        run: |
+          echo "[+] Source : ${{ inputs.ksu_repo }} @ ${{ inputs.ksu_ref }}"
+          echo "[+] Commit : $(git log -1 --format='%h %s')"
+          echo "[+] Describe: $(git describe --tags --always)"
+          echo "[+] Kernel KSU_VERSION: $(grep -oE 'KSU_VERSION=[0-9]+' kernel/Makefile | head -1)"
+          test -f manager/dummy.keystore || { echo "[-] manager/dummy.keystore missing"; exit 1; }
+
+      # ---------- ksud (arm64) ----------
+      - name: Setup Rust
+        run: |
+          rustup update stable
+          rustup target add aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ksu/userspace/ksud
+          cache-targets: false
+
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r29
+
+      - name: Build ksud (aarch64)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          source .github/scripts/setup-rust-build.sh aarch64-linux-android 26
+          cargo build --target "$TRIPLE" --release --manifest-path ./userspace/ksud/Cargo.toml
+          test -f target/aarch64-linux-android/release/ksud
+          ls -l target/aarch64-linux-android/release/ksud
+
+      # ---------- manager APK ----------
+      - name: Write signing key (dummy.keystore)
+        working-directory: ksu/manager
+        run: |
+          {
+            echo KEYSTORE_PASSWORD='password'
+            echo KEY_ALIAS='alias'
+            echo KEY_PASSWORD='password'
+            echo KEYSTORE_FILE='dummy.keystore'
+          } >> gradle.properties
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build manager with Gradle
+        working-directory: ksu/manager
+        run: ./gradlew clean assembleRelease --stacktrace
+
+      - name: Repack (inject ksud) and sign
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          STRIP_ARG=""
+          if [ "${{ inputs.strip_ksud }}" = "true" ]; then STRIP_ARG="--strip"; fi
+          python3 repack_apk.py repack \
+            -b release \
+            -t release \
+            -a arm64-v8a \
+            -K manager/dummy.keystore \
+            -A alias \
+            -P password \
+            -S password \
+            $STRIP_ARG
+          ls -l dist/
+
+      # ---------- verify the APK will be accepted by the xxKSU kernel ----------
+      - name: Verify APK (package + signature vs kernel)
+        run: |
+          set -euo pipefail
+          APK=$(ls dist/*.apk | head -n 1)
+          BT=$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/* | sort -V | tail -n 1)
+          echo "[+] build-tools: $BT"
+
+          # signature digest as seen by apksigner (sha256 of the signer certificate)
+          "$BT/apksigner" verify --print-certs "$APK" | tee /tmp/certs.txt
+          APK_HASH=$(grep -m1 'certificate SHA-256 digest' /tmp/certs.txt | awk '{print $NF}')
+
+          # same cert exported from the keystore -> size + hash the kernel compares
+          keytool -exportcert -alias alias -keystore manager/dummy.keystore -storepass password -file /tmp/cert.der
+          KS_HASH=$(sha256sum /tmp/cert.der | awk '{print $1}')
+          KS_SIZE=$(printf '0x%04x' "$(stat -c%s /tmp/cert.der)")
+          echo "[+] keystore cert: size=$KS_SIZE sha256=$KS_HASH"
+
+          if [ "$APK_HASH" != "$KS_HASH" ]; then
+            echo "[-] APK signer ($APK_HASH) != dummy.keystore cert ($KS_HASH)"; exit 1
+          fi
+
+          # does the kernel source of this ref accept that certificate?
+          if grep -q "$KS_HASH" kernel/manager/apk_sign.c kernel/Makefile; then
+            echo "[+] Kernel accepts this signature (hash found in apk_sign.c / Makefile)."
+          else
+            echo "[-] Kernel source of this ref does NOT list hash $KS_HASH -> manager would be rejected."; exit 1
+          fi
+
+          # package name must match KSU_PACKAGE_NAME of the kernel
+          KERNEL_PKG=$(grep -m1 '^KSU_PACKAGE_NAME' kernel/Makefile | sed 's/.*:= *//')
+          APK_PKG=$("$BT/aapt2" dump badging "$APK" | grep -m1 '^package:' | sed -E "s/.*name='([^']+)'.*/\1/")
+          echo "[+] package: apk=$APK_PKG kernel=$KERNEL_PKG"
+          [ "$APK_PKG" = "$KERNEL_PKG" ] || { echo "[-] package name mismatch"; exit 1; }
+
+          # libksud.so present for arm64
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libksud.so' || { echo "[-] libksud.so missing"; exit 1; }
+
+          VERSION_LINE=$("$BT/aapt2" dump badging "$APK" | grep -m1 '^package:')
+          {
+            echo "## xxKSU manager"
+            echo ""
+            echo "- Source: \`${{ inputs.ksu_repo }}@${{ inputs.ksu_ref }}\` ($(git log -1 --format='%h'))"
+            echo "- APK: \`$(basename "$APK")\` ($(du -h "$APK" | cut -f1))"
+            echo "- SHA256: \`$(sha256sum "$APK" | awk '{print $1}')\`"
+            echo "- Package: \`$APK_PKG\`"
+            echo "- Signature: size \`$KS_SIZE\`, sha256 \`$KS_HASH\` (accepted by kernel)"
+            echo "- Badging: \`$VERSION_LINE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload manager APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: xxksu-manager
+          path: ksu/dist/*.apk
+          if-no-files-found: error
