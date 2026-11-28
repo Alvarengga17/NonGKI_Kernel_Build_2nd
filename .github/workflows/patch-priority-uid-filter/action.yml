@@ -1,4 +1,4 @@
-name: 'Patch SUSFS v2.4.0 (newest sync) + PRIORITY_UID_FILTER (kernel side + BakaSU side).'
+name: 'Patch SUSFS v2.4.0 (newest sync, 27 Nov 2026) + PRIORITY_UID_FILTER (kernel side + BakaSU side).'
 # Drop-in replacement for .github/workflows/patch-priority-uid-filter/action.yml
 # Self-contained: this single file carries the v2.3.0 -> v2.4.0 kernel delta, the v2.4.0 -> newest-sync delta (susfs_patch_to_4.19.patch, latest update: sus_path test_bit back on i_state) and the BakaSU patcher (gzip+base64, sha256-verified).
 # Place it AFTER patch-susfs / patch-nomount / patch-baseband-guard (same position as before).
@@ -467,10 +467,45 @@ runs:
           v/Vi52/9P+fvNzh/S0muuvay2tVbWdORWv98lsAMOlUxMAHUKdUijeXRZ7Qy4Y8zNP2f0e4AB6F8
           XmoQP75VD25tVX/4Gxgiw7CelwAA
           B64_C
+          base64 -d <<'B64_D' | gzip -dc > "$ACTION_DIR/susfs-v240c-to-v240d.patch"
+          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
+          B64_D
           echo "b6e22a0dd9130e17a5eb1f33057af0097d8370c2afee391c0a93287ec4119d13  $ACTION_DIR/susfs-v230-to-v240.patch" | sha256sum -c -
           echo "d2287a0cf7082d1f156677e5d4e3e3fc1365cb9b0cba07fdb2075edd1c35f2ca  $ACTION_DIR/susfs-v230prio-to-v240.patch" | sha256sum -c -
           echo "54f3d4f0ce4d06a6456ea6ab39e5e47d862355b1b2cf3d5ee0bb6c4bbab990cc  $ACTION_DIR/patch_bakasu.py" | sha256sum -c -
           echo "b3441069de140ff56d43c0663d89c0ad7f5cdef364d1443fbeba5096e4bc2d23  $ACTION_DIR/susfs-v240-to-v240b.patch" | sha256sum -c -
+          echo "36c21ce0df687284cbd5c5627cf66476dcef992ca6d7f4450e3b108a4127c09f  $ACTION_DIR/susfs-v240c-to-v240d.patch" | sha256sum -c -
           echo "::endgroup::"
           cd "$GITHUB_WORKSPACE/device_kernel"
           DEFCONFIG="arch/${KERNEL_ARCH}/configs/${DEFCONFIG_NAME}"
@@ -538,6 +573,27 @@ runs:
             echo "763a502a37c3ffa3807ba2cab46af31807b8bd87cccb86d12e552d0532a96573  include/linux/susfs.h" | sha256sum -c -
             echo "ae28964527e6fb64ca63e2a98f96acbdb8fd4bbd1350ded71ea6d491f7375158  include/linux/susfs_def.h" | sha256sum -c -
           fi
+
+          # Sync with JackA1ltman's 27 Nov 2026 commits of susfs_patch_to_4.19.patch (bf55d2c8 + ef537d74), kernel core only:
+          #  - bf55d2c8: NULL check before kfree_rcu(old_bitmap, rcu) in the sus_path uid filter set/resolve paths. On the FIRST apply
+          #    after boot old_bitmap is NULL and rcu sits at offset 0, so kfree_rcu(NULL, rcu) => kfree_call_rcu(NULL, 0) => NULL write
+          #    (kernel oops; reboot with panic_on_oops). That is the reboot seen when filling the BRENE SUS_PATH_UID_FILTER tab.
+          #  - ef537d74: sdcardfs support (lower-inode flag AS_FLAGS_SUS_PATH_SDCARDFS = 41); compiled in only when CONFIG_SDCARD_FS=y.
+          # Still kept from the previous setup (NOT in upstream): the msleep(1500) and the empty *_RL log macros.
+          # Marker = AS_FLAGS_SUS_PATH_SDCARDFS in susfs_def.h. Must run after the sync patch above (state v240c).
+          if grep -q "AS_FLAGS_SUS_PATH_SDCARDFS" include/linux/susfs_def.h; then
+            echo "[+] Kernel already has the 27 Nov 2026 SUSFS sync (null check + sdcardfs), skipped."
+          else
+            D_PATCH="$ACTION_DIR/susfs-v240c-to-v240d.patch"
+            if ! patch -p1 -F0 --dry-run < "$D_PATCH"; then
+              fail "27 Nov 2026 SUSFS sync patch does not apply cleanly (kernel is not in the expected v240c state). Nothing was modified."
+            fi
+            patch -p1 -F0 --no-backup-if-mismatch < "$D_PATCH"
+            echo "[+] Synced with the 27 Nov 2026 susfs_patch_to_4.19.patch (null check + sdcardfs)."
+            echo "7f56ee471d011f29cf36cfe1e7d2fb6bdf2e4233650fbdb6c45b5692efea00e1  fs/susfs.c" | sha256sum -c -
+            echo "763a502a37c3ffa3807ba2cab46af31807b8bd87cccb86d12e552d0532a96573  include/linux/susfs.h" | sha256sum -c -
+            echo "a5b96f5a2acf51d2260cbb3a8077178c36ee45001f4da5bdb77e018794cf3f41  include/linux/susfs_def.h" | sha256sum -c -
+          fi
           echo "::endgroup::"
 
           echo "::group::[+] BakaSU side (Kconfig / supercall / throne tracker)"
@@ -572,6 +628,11 @@ runs:
           chk include/linux/susfs_def.h                    "CMD_SUSFS_SET_SUS_PATH_UID_FILTER 0x55554"
           chk fs/susfs.c                                   "susfs_kernel_read"
           chk fs/susfs.c                                   "msleep(1500);"
+          chk fs/susfs.c                                   "SUSFS_LOGE_RL(fmt, ...)"
+          chk fs/susfs.c                                   "susfs_flag_sdcardfs_lower_inode"
+          chk include/linux/susfs_def.h                    "AS_FLAGS_SUS_PATH_SDCARDFS 41"
+          if [ "$(grep -c -F "if (old_bitmap)" fs/susfs.c)" -lt 2 ]; then fail "kfree_rcu NULL checks missing in susfs.c"; fi
+          awk '/kfree_rcu\(old_bitmap/ { if (prev !~ /if \(old_bitmap\)/) bad=1 } { prev=$0 } END { exit bad }' fs/susfs.c || fail "unguarded kfree_rcu(old_bitmap) found in susfs.c"
           chk fs/Makefile                                  "SUSFS_KERNEL_READ_NEW"
           chk drivers/kernelsu/Kconfig                     "config KSU_SUSFS_PRIORITY_UID_FILTER"
           chk drivers/kernelsu/supercall/dispatch.c        "CMD_SUSFS_SET_PRIORITY_UID_FILTER"
